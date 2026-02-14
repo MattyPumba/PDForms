@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function HomePage() {
   return (
     <main style={{ padding: 40, fontFamily: "system-ui" }}>
@@ -7,8 +9,24 @@ export default function HomePage() {
         then re-exports them back to PDF.
       </p>
 
-      <p style={{ marginTop: 24, opacity: 0.7 }}>
-        Status: Project scaffold initialized.
+      <div style={{ marginTop: 32 }}>
+        <Link
+          href="/upload"
+          style={{
+            display: "inline-block",
+            padding: "10px 16px",
+            background: "#111",
+            color: "#fff",
+            borderRadius: 8,
+            textDecoration: "none"
+          }}
+        >
+          Upload a PDF
+        </Link>
+      </div>
+
+      <p style={{ marginTop: 32, opacity: 0.6 }}>
+        Status: Scaffold ready.
       </p>
     </main>
   );
