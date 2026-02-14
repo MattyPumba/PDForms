@@ -1,7 +1,7 @@
 import type { PdfField } from "@/types/field";
-import { PDFDocument } from "pdf-lib";
 import { detectLabels } from "@/lib/detect/detectLabels";
 import { inferFieldType } from "@/lib/detect/inferFieldType";
+import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
 
 export class PdfLoadError extends Error {
   constructor(message: string) {
@@ -14,27 +14,37 @@ export class PdfLoadError extends Error {
  * parsePdfToDraftFields
  *
  * V1:
- * - Load PDF (ignore encryption)
- * - TEMP: Attempt to extract *any* text by reading the raw PDF bytes as UTF-8
- *   and running label heuristics against it.
+ * - Use PDF.js to extract text content (handles FlateDecode streams)
+ * - Run label detection on extracted text
  *
- * This is a debugging bridge until we add a proper text extractor.
+ * Still no coordinates yet.
  */
 export async function parsePdfToDraftFields(pdfBytes: Uint8Array): Promise<PdfField[]> {
   try {
-    const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+    const lib: any = pdfjsLib;
 
-    const pageCount = pdfDoc.getPageCount();
-    for (let i = 0; i < pageCount; i++) {
-      pdfDoc.getPage(i);
+    // Worker served from /public
+    lib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+
+    const loadingTask = lib.getDocument({ data: pdfBytes });
+    const pdf = await loadingTask.promise;
+
+    const pageTexts: string[] = [];
+
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const content = await page.getTextContent();
+
+      const strings = (content.items ?? [])
+        .map((it: any) => (typeof it.str === "string" ? it.str : ""))
+        .filter(Boolean);
+
+      pageTexts.push(strings.join("\n"));
     }
 
-    // TEMP DEBUG EXTRACTION:
-    // Many PDFs embed text as readable strings in the byte stream.
-    // This is NOT a final approach, but lets us validate label detection quickly.
-    const rawText = new TextDecoder("utf-8", { fatal: false }).decode(pdfBytes);
+    const extractedText = pageTexts.join("\n");
 
-    const labels = detectLabels(rawText);
+    const labels = detectLabels(extractedText);
 
     const fields: PdfField[] = labels.map((label) => ({
       id: crypto.randomUUID(),
