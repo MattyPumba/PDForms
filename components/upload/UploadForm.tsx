@@ -10,6 +10,7 @@ export function UploadForm() {
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<PdfField[] | null>(null);
   const [meta, setMeta] = useState<PdfDocumentMeta | null>(null);
+  const [debugLines, setDebugLines] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleParse() {
@@ -19,6 +20,7 @@ export function UploadForm() {
     setError(null);
     setFields(null);
     setMeta(null);
+    setDebugLines(null);
 
     const result = await parsePdfFile(file);
 
@@ -27,6 +29,7 @@ export function UploadForm() {
     } else {
       setFields(result.data.fields);
       setMeta(result.data.meta);
+      setDebugLines(result.data.debug?.sampleLines ?? []);
     }
 
     setLoading(false);
@@ -104,6 +107,27 @@ export function UploadForm() {
               ))}
             </ul>
           )}
+        </div>
+      )}
+
+      {debugLines && (
+        <div style={{ marginTop: 24 }}>
+          <h3>Debug: First 25 “lines” from PDF byte stream</h3>
+          <p style={{ marginTop: 6, opacity: 0.7 }}>
+            This helps us see whether text is readable or compressed.
+          </p>
+          <pre
+            style={{
+              marginTop: 12,
+              padding: 12,
+              borderRadius: 8,
+              background: "#f5f5f5",
+              overflowX: "auto",
+              maxHeight: 240,
+            }}
+          >
+            {debugLines.length === 0 ? "(no readable lines found)" : debugLines.join("\n")}
+          </pre>
         </div>
       )}
     </section>

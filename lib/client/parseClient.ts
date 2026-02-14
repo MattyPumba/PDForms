@@ -5,6 +5,10 @@ import type { ApiResponse } from "@/lib/api/apiResponse";
 export type ParseApiData = {
   fields: PdfField[];
   meta: PdfDocumentMeta;
+  debug?: {
+    fieldCount: number;
+    sampleLines: string[];
+  };
 };
 
 export async function parsePdfFile(file: File): Promise<ApiResponse<ParseApiData>> {

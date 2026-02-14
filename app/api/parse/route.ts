@@ -20,7 +20,6 @@ export async function POST(req: Request) {
 
     const pdfBytes = new Uint8Array(await file.arrayBuffer());
 
-    // Load document using same baseline logic
     const fields = await parsePdfToDraftFields(pdfBytes);
 
     const parsed = pdfFieldListSchema.safeParse(fields);
@@ -31,7 +30,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Extract page count via pdf-lib again (lightweight)
     const { PDFDocument } = await import("pdf-lib");
     const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
 
@@ -39,10 +37,22 @@ export async function POST(req: Request) {
       pageCount: pdfDoc.getPageCount(),
     };
 
+    // TEMP DEBUG: show whether the raw stream has readable text at all
+    const raw = new TextDecoder("utf-8", { fatal: false }).decode(pdfBytes);
+    const sampleLines = raw
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .slice(0, 25);
+
     return NextResponse.json(
       success({
         fields: parsed.data,
         meta,
+        debug: {
+          fieldCount: parsed.data.length,
+          sampleLines,
+        },
       })
     );
   } catch (err: any) {

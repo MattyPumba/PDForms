@@ -15,12 +15,10 @@ export class PdfLoadError extends Error {
  *
  * V1:
  * - Load PDF (ignore encryption)
- * - Extract *some* text (best-effort) and run simple heuristics:
- *    - find labels
- *    - infer field types from labels
+ * - TEMP: Attempt to extract *any* text by reading the raw PDF bytes as UTF-8
+ *   and running label heuristics against it.
  *
- * Note: pdf-lib isn't a strong text extractor. This is a "first demo"
- * heuristic pass. We'll upgrade extraction later.
+ * This is a debugging bridge until we add a proper text extractor.
  */
 export async function parsePdfToDraftFields(pdfBytes: Uint8Array): Promise<PdfField[]> {
   try {
@@ -31,9 +29,11 @@ export async function parsePdfToDraftFields(pdfBytes: Uint8Array): Promise<PdfFi
       pdfDoc.getPage(i);
     }
 
-    // Best-effort text: many PDFs won't yield useful text via pdf-lib.
-    // We'll still run the pipeline so structure is in place.
-    const rawText = ""; // upgraded later
+    // TEMP DEBUG EXTRACTION:
+    // Many PDFs embed text as readable strings in the byte stream.
+    // This is NOT a final approach, but lets us validate label detection quickly.
+    const rawText = new TextDecoder("utf-8", { fatal: false }).decode(pdfBytes);
+
     const labels = detectLabels(rawText);
 
     const fields: PdfField[] = labels.map((label) => ({
@@ -46,7 +46,7 @@ export async function parsePdfToDraftFields(pdfBytes: Uint8Array): Promise<PdfFi
     }));
 
     return fields;
-  } catch (err: any) {
+  } catch (_err: any) {
     throw new PdfLoadError(
       "This PDF could not be parsed. Try a different PDF (some are malformed, heavily protected, or use unsupported structures)."
     );
