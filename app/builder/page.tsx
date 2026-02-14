@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { FormModel } from "@/types/formModel";
 import { getCurrentModel, setCurrentModel } from "@/lib/client/modelStore";
-import { FieldEditor } from "@/components/builder/FieldEditor";
+import { BuilderFieldList } from "@/components/builder/BuilderFieldList";
 
 export default function BuilderPage() {
   const [model, setModel] = useState<FormModel | null>(null);
@@ -51,9 +51,10 @@ export default function BuilderPage() {
               Click each field to rename, change type, or toggle required.
             </p>
 
-            {model.fields.map((f) => (
-              <FieldEditor key={f.id} field={f} onUpdate={handleFieldUpdate} />
-            ))}
+            <BuilderFieldList
+              fields={model.fields}
+              onUpdate={handleFieldUpdate}
+            />
           </div>
         </>
       )}
