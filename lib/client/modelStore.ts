@@ -3,20 +3,22 @@
 import type { FormModel } from "@/types/formModel";
 
 let currentModel: FormModel | null = null;
+let currentPdfBytes: Uint8Array | null = null;
 
-/**
- * Temporary in-memory store for V1.
- * This is enough for a demo and keeps scaffolding clean.
- * (Later we can replace with URL state, localStorage, or DB.)
- */
-export function setCurrentModel(model: FormModel) {
+export function setCurrentModel(model: FormModel, pdfBytes?: Uint8Array) {
   currentModel = model;
+  if (pdfBytes) currentPdfBytes = pdfBytes;
 }
 
 export function getCurrentModel(): FormModel | null {
   return currentModel;
 }
 
+export function getCurrentPdfBytes(): Uint8Array | null {
+  return currentPdfBytes;
+}
+
 export function clearCurrentModel() {
   currentModel = null;
+  currentPdfBytes = null;
 }

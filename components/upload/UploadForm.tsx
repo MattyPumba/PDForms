@@ -54,7 +54,8 @@ export function UploadForm() {
       setFields(json.data.fields);
       setMeta(json.data.meta);
 
-      // Save as a FormModel for the Builder
+      // Save as a FormModel for the Builder, including original PDF bytes
+      const pdfBytes = new Uint8Array(await file.arrayBuffer());
       const model: FormModel = {
         id: crypto.randomUUID(),
         name: file.name.replace(/\.pdf$/i, ""),
@@ -62,7 +63,7 @@ export function UploadForm() {
         fields: json.data.fields,
       };
 
-      setCurrentModel(model);
+      setCurrentModel(model, pdfBytes);
 
       // Redirect to builder
       router.push("/builder");
