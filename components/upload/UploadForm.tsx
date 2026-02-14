@@ -1,16 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { parsePdfFile } from "@/lib/client/parseClient";
 import type { PdfField } from "@/types/field";
 import type { PdfDocumentMeta } from "@/types/document";
+import { extractPdfText } from "@/lib/client/extractPdfText";
+import type { ApiResponse } from "@/lib/api/apiResponse";
+
+type DetectApiData = {
+  meta: PdfDocumentMeta;
+  fields: PdfField[];
+};
 
 export function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<PdfField[] | null>(null);
   const [meta, setMeta] = useState<PdfDocumentMeta | null>(null);
-  const [debugLines, setDebugLines] = useState<string[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleParse() {
@@ -20,19 +25,34 @@ export function UploadForm() {
     setError(null);
     setFields(null);
     setMeta(null);
-    setDebugLines(null);
 
-    const result = await parsePdfFile(file);
+    try {
+      // 1) Extract text in the browser
+      const extracted = await extractPdfText(file);
 
-    if (!result.ok) {
-      setError(result.error);
-    } else {
-      setFields(result.data.fields);
-      setMeta(result.data.meta);
-      setDebugLines(result.data.debug?.sampleLines ?? []);
+      // 2) Send extracted text to server for detection heuristics
+      const res = await fetch("/api/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: extracted.text,
+          pageCount: extracted.pageCount,
+        }),
+      });
+
+      const json = (await res.json()) as ApiResponse<DetectApiData>;
+
+      if (!json.ok) {
+        setError(json.error);
+      } else {
+        setFields(json.data.fields);
+        setMeta(json.data.meta);
+      }
+    } catch (e: any) {
+      setError(e?.message ?? "Unexpected error during extraction.");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   }
 
   return (
@@ -67,18 +87,15 @@ export function UploadForm() {
             opacity: file && !loading ? 1 : 0.6,
           }}
         >
-          {loading ? "Parsing..." : "Parse PDF"}
+          {loading ? "Extracting..." : "Extract + Detect"}
         </button>
       </div>
 
       {error && (
         <div style={{ marginTop: 16 }}>
-          <p style={{ color: "crimson", marginBottom: 8 }}>
-            Error: {error}
-          </p>
+          <p style={{ color: "crimson", marginBottom: 8 }}>Error: {error}</p>
           <p style={{ opacity: 0.7, marginTop: 0 }}>
-            Tip: If this PDF came from a portal/system export, try printing to PDF
-            or exporting from Google Docs/Word and re-uploading.
+            Tip: Try “Print to PDF” to flatten/export and re-upload.
           </p>
         </div>
       )}
@@ -93,7 +110,7 @@ export function UploadForm() {
         <div style={{ marginTop: 20 }}>
           <h3>Detected Fields</h3>
           <p style={{ marginTop: 6, opacity: 0.7 }}>
-            Note: coordinates + per-page placement is coming next (this is the first heuristic pass).
+            Note: coordinates + per-page placement is coming next (this is label-based detection).
           </p>
 
           {fields.length === 0 ? (
@@ -107,27 +124,6 @@ export function UploadForm() {
               ))}
             </ul>
           )}
-        </div>
-      )}
-
-      {debugLines && (
-        <div style={{ marginTop: 24 }}>
-          <h3>Debug: First 25 “lines” from PDF byte stream</h3>
-          <p style={{ marginTop: 6, opacity: 0.7 }}>
-            This helps us see whether text is readable or compressed.
-          </p>
-          <pre
-            style={{
-              marginTop: 12,
-              padding: 12,
-              borderRadius: 8,
-              background: "#f5f5f5",
-              overflowX: "auto",
-              maxHeight: 240,
-            }}
-          >
-            {debugLines.length === 0 ? "(no readable lines found)" : debugLines.join("\n")}
-          </pre>
         </div>
       )}
     </section>
