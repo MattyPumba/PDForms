@@ -69,9 +69,15 @@ export function UploadForm() {
       </div>
 
       {error && (
-        <p style={{ marginTop: 16, color: "crimson" }}>
-          Error: {error}
-        </p>
+        <div style={{ marginTop: 16 }}>
+          <p style={{ color: "crimson", marginBottom: 8 }}>
+            Error: {error}
+          </p>
+          <p style={{ opacity: 0.7, marginTop: 0 }}>
+            Tip: If this PDF came from a portal/system export, try printing to PDF
+            or exporting from Google Docs/Word and re-uploading.
+          </p>
+        </div>
       )}
 
       {meta && (
