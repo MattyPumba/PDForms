@@ -1,8 +1,10 @@
 import type { PdfField } from "@/types/field";
+import type { PdfDocumentMeta } from "@/types/document";
 import type { ApiResponse } from "@/lib/api/apiResponse";
 
 export type ParseApiData = {
   fields: PdfField[];
+  meta: PdfDocumentMeta;
 };
 
 export async function parsePdfFile(file: File): Promise<ApiResponse<ParseApiData>> {

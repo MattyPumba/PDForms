@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { parsePdfFile } from "@/lib/client/parseClient";
 import type { PdfField } from "@/types/field";
+import type { PdfDocumentMeta } from "@/types/document";
 
 export function UploadForm() {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<PdfField[] | null>(null);
+  const [meta, setMeta] = useState<PdfDocumentMeta | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   async function handleParse() {
@@ -16,6 +18,7 @@ export function UploadForm() {
     setLoading(true);
     setError(null);
     setFields(null);
+    setMeta(null);
 
     const result = await parsePdfFile(file);
 
@@ -23,6 +26,7 @@ export function UploadForm() {
       setError(result.error);
     } else {
       setFields(result.data.fields);
+      setMeta(result.data.meta);
     }
 
     setLoading(false);
@@ -67,6 +71,12 @@ export function UploadForm() {
       {error && (
         <p style={{ marginTop: 16, color: "crimson" }}>
           Error: {error}
+        </p>
+      )}
+
+      {meta && (
+        <p style={{ marginTop: 16, opacity: 0.8 }}>
+          Pages detected: <b>{meta.pageCount}</b>
         </p>
       )}
 

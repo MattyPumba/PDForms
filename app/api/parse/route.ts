@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { failure, success } from "@/lib/api/apiResponse";
 import { parsePdfToDraftFields, PdfLoadError } from "@/lib/pdf/parsePdf";
 import { pdfFieldListSchema } from "@/lib/schemas/pdfField";
+import type { PdfDocumentMeta } from "@/types/document";
 
 export const runtime = "nodejs";
 
@@ -18,6 +19,8 @@ export async function POST(req: Request) {
     }
 
     const pdfBytes = new Uint8Array(await file.arrayBuffer());
+
+    // Load document using same baseline logic
     const fields = await parsePdfToDraftFields(pdfBytes);
 
     const parsed = pdfFieldListSchema.safeParse(fields);
@@ -28,7 +31,20 @@ export async function POST(req: Request) {
       );
     }
 
-    return NextResponse.json(success({ fields: parsed.data }));
+    // Extract page count via pdf-lib again (lightweight)
+    const { PDFDocument } = await import("pdf-lib");
+    const pdfDoc = await PDFDocument.load(pdfBytes, { ignoreEncryption: true });
+
+    const meta: PdfDocumentMeta = {
+      pageCount: pdfDoc.getPageCount(),
+    };
+
+    return NextResponse.json(
+      success({
+        fields: parsed.data,
+        meta,
+      })
+    );
   } catch (err: any) {
     if (err instanceof PdfLoadError) {
       return NextResponse.json(failure(err.message), { status: 400 });
