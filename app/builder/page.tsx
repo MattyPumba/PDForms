@@ -3,15 +3,28 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { FormModel } from "@/types/formModel";
-import { getCurrentModel } from "@/lib/client/modelStore";
-import { FieldListByPage } from "@/components/fields/FieldListByPage";
+import { getCurrentModel, setCurrentModel } from "@/lib/client/modelStore";
+import { FieldEditor } from "@/components/builder/FieldEditor";
 
 export default function BuilderPage() {
   const [model, setModel] = useState<FormModel | null>(null);
 
   useEffect(() => {
-    setModel(getCurrentModel());
+    const m = getCurrentModel();
+    setModel(m);
   }, []);
+
+  function handleFieldUpdate(updatedField: any) {
+    if (!model) return;
+
+    const updatedFields = model.fields.map((f) =>
+      f.id === updatedField.id ? updatedField : f
+    );
+
+    const updatedModel = { ...model, fields: updatedFields };
+    setModel(updatedModel);
+    setCurrentModel(updatedModel);
+  }
 
   return (
     <main style={{ padding: 40, fontFamily: "system-ui" }}>
@@ -33,12 +46,14 @@ export default function BuilderPage() {
           </p>
 
           <div style={{ marginTop: 20 }}>
-            <h3>Current Fields</h3>
+            <h3>Fields</h3>
             <p style={{ marginTop: 6, opacity: 0.7 }}>
-              Next step: add editing controls (rename/type/required) per field.
+              Click each field to rename, change type, or toggle required.
             </p>
 
-            <FieldListByPage fields={model.fields} />
+            {model.fields.map((f) => (
+              <FieldEditor key={f.id} field={f} onUpdate={handleFieldUpdate} />
+            ))}
           </div>
         </>
       )}
