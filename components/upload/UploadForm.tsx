@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import type { PdfField } from "@/types/field";
 import type { PdfDocumentMeta } from "@/types/document";
 import { extractPdfText } from "@/lib/client/extractPdfText";
 import type { ApiResponse } from "@/lib/api/apiResponse";
 import { FieldListByPage } from "@/components/fields/FieldListByPage";
+import { setCurrentModel } from "@/lib/client/modelStore";
+import type { FormModel } from "@/types/formModel";
 
 type DetectApiData = {
   meta: PdfDocumentMeta;
@@ -13,6 +16,8 @@ type DetectApiData = {
 };
 
 export function UploadForm() {
+  const router = useRouter();
+
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [fields, setFields] = useState<PdfField[] | null>(null);
@@ -28,10 +33,8 @@ export function UploadForm() {
     setMeta(null);
 
     try {
-      // 1) Extract text in the browser
       const extracted = await extractPdfText(file);
 
-      // 2) Send extracted text to server for detection heuristics
       const res = await fetch("/api/detect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -45,10 +48,24 @@ export function UploadForm() {
 
       if (!json.ok) {
         setError(json.error);
-      } else {
-        setFields(json.data.fields);
-        setMeta(json.data.meta);
+        return;
       }
+
+      setFields(json.data.fields);
+      setMeta(json.data.meta);
+
+      // Save as a FormModel for the Builder
+      const model: FormModel = {
+        id: crypto.randomUUID(),
+        name: file.name.replace(/\.pdf$/i, ""),
+        pageCount: json.data.meta.pageCount,
+        fields: json.data.fields,
+      };
+
+      setCurrentModel(model);
+
+      // Redirect to builder
+      router.push("/builder");
     } catch (e: any) {
       setError(e?.message ?? "Unexpected error during extraction.");
     } finally {
@@ -88,7 +105,7 @@ export function UploadForm() {
             opacity: file && !loading ? 1 : 0.6,
           }}
         >
-          {loading ? "Extracting..." : "Extract + Detect"}
+          {loading ? "Extracting..." : "Extract + Detect → Builder"}
         </button>
       </div>
 
