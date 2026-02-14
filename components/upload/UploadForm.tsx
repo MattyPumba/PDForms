@@ -89,6 +89,10 @@ export function UploadForm() {
       {fields && (
         <div style={{ marginTop: 20 }}>
           <h3>Detected Fields</h3>
+          <p style={{ marginTop: 6, opacity: 0.7 }}>
+            Note: coordinates + per-page placement is coming next (this is the first heuristic pass).
+          </p>
+
           {fields.length === 0 ? (
             <p style={{ opacity: 0.7 }}>No fields detected yet.</p>
           ) : (
