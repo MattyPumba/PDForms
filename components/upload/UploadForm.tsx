@@ -5,6 +5,7 @@ import type { PdfField } from "@/types/field";
 import type { PdfDocumentMeta } from "@/types/document";
 import { extractPdfText } from "@/lib/client/extractPdfText";
 import type { ApiResponse } from "@/lib/api/apiResponse";
+import { FieldListByPage } from "@/components/fields/FieldListByPage";
 
 type DetectApiData = {
   meta: PdfDocumentMeta;
@@ -113,17 +114,7 @@ export function UploadForm() {
             Note: coordinates + per-page placement is coming next (this is label-based detection).
           </p>
 
-          {fields.length === 0 ? (
-            <p style={{ opacity: 0.7 }}>No fields detected yet.</p>
-          ) : (
-            <ul>
-              {fields.map((f) => (
-                <li key={f.id}>
-                  {f.label} (page {f.page + 1}, type: {f.type})
-                </li>
-              ))}
-            </ul>
-          )}
+          <FieldListByPage fields={fields} />
         </div>
       )}
     </section>
