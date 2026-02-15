@@ -3,15 +3,19 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import type { FormModel } from "@/types/formModel";
-import { getCurrentModel, setCurrentModel } from "@/lib/client/modelStore";
+import { getCurrentModel, getCurrentPdfBytes, setCurrentModel } from "@/lib/client/modelStore";
 import { BuilderFieldList } from "@/components/builder/BuilderFieldList";
+import { ExportControls } from "@/components/builder/ExportControls";
 
 export default function BuilderPage() {
   const [model, setModel] = useState<FormModel | null>(null);
+  const [pdfBytes, setPdfBytes] = useState<Uint8Array | null>(null);
 
   useEffect(() => {
     const m = getCurrentModel();
     setModel(m);
+    const bytes = getCurrentPdfBytes();
+    if (bytes) setPdfBytes(bytes);
   }, []);
 
   function handleFieldUpdate(updatedField: any) {
@@ -23,7 +27,7 @@ export default function BuilderPage() {
 
     const updatedModel = { ...model, fields: updatedFields };
     setModel(updatedModel);
-    setCurrentModel(updatedModel);
+    setCurrentModel(updatedModel, pdfBytes ?? undefined);
   }
 
   return (
@@ -55,6 +59,10 @@ export default function BuilderPage() {
               fields={model.fields}
               onUpdate={handleFieldUpdate}
             />
+
+            {pdfBytes && (
+              <ExportControls originalPdfBytes={pdfBytes} fields={model.fields} />
+            )}
           </div>
         </>
       )}
