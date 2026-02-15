@@ -1,7 +1,8 @@
 import type { PdfField } from "@/types/field";
 import { detectLabels } from "@/lib/detect/detectLabels";
 import { inferFieldType } from "@/lib/detect/inferFieldType";
-import * as pdfjsLib from "pdfjs-dist/legacy/build/pdf.mjs";
+import { renderPdfPageToImage } from "../pdf/renderPage";
+import { detectTextFromImage } from "../ocr/detectText";
 
 export class PdfLoadError extends Error {
   constructor(message: string) {
@@ -13,52 +14,60 @@ export class PdfLoadError extends Error {
 /**
  * parsePdfToDraftFields
  *
- * V1:
- * - Use PDF.js to extract text content (handles FlateDecode streams)
- * - Run label detection on extracted text
- *
- * Still no coordinates yet.
+ * V2: AI-assisted coordinates
+ * - Renders each page to an image
+ * - Runs Tesseract OCR to detect text + bounding boxes
+ * - Matches detected labels with OCR boxes
+ * - Populates PdfField.rect
  */
 export async function parsePdfToDraftFields(pdfBytes: Uint8Array): Promise<PdfField[]> {
   try {
-    const lib: any = pdfjsLib;
+    const fields: PdfField[] = [];
 
-    // Worker served from /public
-    lib.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
+    // Load PDF to get page count
+    const { PDFDocument } = await import("pdf-lib");
+    const pdf = await PDFDocument.load(pdfBytes);
 
-    const loadingTask = lib.getDocument({ data: pdfBytes });
-    const pdf = await loadingTask.promise;
+    const pageCount = pdf.getPageCount();
 
-    const pageTexts: string[] = [];
+    for (let pageIndex = 0; pageIndex < pageCount; pageIndex++) {
+      // Render page to image
+      const pageImage = await renderPdfPageToImage(pdfBytes, pageIndex);
 
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      const page = await pdf.getPage(pageNum);
-      const content = await page.getTextContent();
+      // Run OCR
+      const ocrResults = await detectTextFromImage(pageImage);
 
-      const strings = (content.items ?? [])
-        .map((it: any) => (typeof it.str === "string" ? it.str : ""))
-        .filter(Boolean);
+      // Extract plain labels from OCR text
+      const labels = detectLabels(
+        ocrResults.map((r: { text: string }) => r.text).join("\n")
+      );
 
-      pageTexts.push(strings.join("\n"));
+      for (const label of labels) {
+        // Find OCR box with that text
+        const match = ocrResults.find(
+          (r: { text: string; x: number; y: number; width: number; height: number }) =>
+            r.text.trim().toLowerCase() === label.trim().toLowerCase()
+        );
+
+        const rect = match
+          ? { x: match.x, y: match.y, width: match.width, height: match.height }
+          : { x: 50, y: 500, width: 200, height: 16 }; // fallback
+
+        fields.push({
+          id: crypto.randomUUID(),
+          label,
+          type: inferFieldType(label),
+          required: false,
+          page: pageIndex,
+          rect,
+        });
+      }
     }
 
-    const extractedText = pageTexts.join("\n");
-
-    const labels = detectLabels(extractedText);
-
-    const fields: PdfField[] = labels.map((label) => ({
-      id: crypto.randomUUID(),
-      label,
-      type: inferFieldType(label),
-      required: false,
-      page: 0,
-      rect: { x: 0, y: 0, width: 0, height: 0 },
-    }));
-
     return fields;
-  } catch (_err: any) {
+  } catch (err: any) {
     throw new PdfLoadError(
-      "This PDF could not be parsed. Try a different PDF (some are malformed, heavily protected, or use unsupported structures)."
+      "This PDF could not be parsed. Try a different PDF (scanned forms or heavily structured PDFs may require AI-assisted detection)."
     );
   }
 }

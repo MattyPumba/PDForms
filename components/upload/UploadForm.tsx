@@ -5,15 +5,9 @@ import { useRouter } from "next/navigation";
 import type { PdfField } from "@/types/field";
 import type { PdfDocumentMeta } from "@/types/document";
 import { extractPdfText } from "@/lib/client/extractPdfText";
-import type { ApiResponse } from "@/lib/api/apiResponse";
 import { FieldListByPage } from "@/components/fields/FieldListByPage";
 import { setCurrentModel } from "@/lib/client/modelStore";
 import type { FormModel } from "@/types/formModel";
-
-type DetectApiData = {
-  meta: PdfDocumentMeta;
-  fields: PdfField[];
-};
 
 export function UploadForm() {
   const router = useRouter();
@@ -33,39 +27,61 @@ export function UploadForm() {
     setMeta(null);
 
     try {
+      const pdfBytes = new Uint8Array(await file.arrayBuffer());
+
+      // Try digital text extraction first
       const extracted = await extractPdfText(file);
+      let detectedFields: PdfField[] = [];
+      let pageCount = extracted.pageCount;
 
-      const res = await fetch("/api/detect", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: extracted.text,
-          pageCount: extracted.pageCount,
-        }),
-      });
-
-      const json = (await res.json()) as ApiResponse<DetectApiData>;
-
-      if (!json.ok) {
-        setError(json.error);
-        return;
+      if (extracted.text.trim().length > 0) {
+        // Digital text path
+        const res = await fetch("/api/detect", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            text: extracted.text,
+            pageCount: extracted.pageCount,
+          }),
+        });
+        const json = await res.json();
+        if (!json.ok) {
+          setError(json.error);
+          return;
+        }
+        detectedFields = json.fields;
+        pageCount = json.meta.pageCount;
+      } else {
+        // Fallback to OCR
+        const res = await fetch("/api/ocr-detect", {
+          method: "POST",
+          body: (() => {
+            const fd = new FormData();
+            fd.append("file", file);
+            return fd;
+          })(),
+        });
+        const json = await res.json();
+        if (!json.ok) {
+          setError(json.error);
+          return;
+        }
+        detectedFields = json.fields;
+        pageCount = json.meta.pageCount;
       }
 
-      setFields(json.data.fields);
-      setMeta(json.data.meta);
+      setFields(detectedFields);
+      setMeta({ pageCount });
 
-      // Save as a FormModel for the Builder, including original PDF bytes
-      const pdfBytes = new Uint8Array(await file.arrayBuffer());
+      // Save FormModel + PDF bytes for Builder
       const model: FormModel = {
         id: crypto.randomUUID(),
         name: file.name.replace(/\.pdf$/i, ""),
-        pageCount: json.data.meta.pageCount,
-        fields: json.data.fields,
+        pageCount,
+        fields: detectedFields,
       };
-
       setCurrentModel(model, pdfBytes);
 
-      // Redirect to builder
       router.push("/builder");
     } catch (e: any) {
       setError(e?.message ?? "Unexpected error during extraction.");
@@ -114,7 +130,8 @@ export function UploadForm() {
         <div style={{ marginTop: 16 }}>
           <p style={{ color: "crimson", marginBottom: 8 }}>Error: {error}</p>
           <p style={{ opacity: 0.7, marginTop: 0 }}>
-            Tip: Try “Print to PDF” to flatten/export and re-upload.
+            Tip: If this PDF came from a portal/system export, try printing to PDF
+            or exporting from Google Docs/Word and re-uploading.
           </p>
         </div>
       )}
@@ -129,7 +146,7 @@ export function UploadForm() {
         <div style={{ marginTop: 20 }}>
           <h3>Detected Fields</h3>
           <p style={{ marginTop: 6, opacity: 0.7 }}>
-            Note: coordinates + per-page placement is coming next (this is label-based detection).
+            Note: coordinates + per-page placement is coming next (this is label-based detection or OCR fallback).
           </p>
 
           <FieldListByPage fields={fields} />
