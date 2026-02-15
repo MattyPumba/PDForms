@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import type { PdfField } from "@/types/field";
 import type { PdfDocumentMeta } from "@/types/document";
-import { extractPdfText } from "@/lib/client/extractPdfText";
 import { FieldListByPage } from "@/components/fields/FieldListByPage";
 import { setCurrentModel } from "@/lib/client/modelStore";
 import type { FormModel } from "@/types/formModel";
@@ -27,64 +26,44 @@ export function UploadForm() {
     setMeta(null);
 
     try {
-      const pdfBytes = new Uint8Array(await file.arrayBuffer());
+      // Always POST PDF to /api/ocr-detect
+      const formData = new FormData();
+      formData.append("file", file);
 
-      // Try digital text extraction first
-      const extracted = await extractPdfText(file);
-      let detectedFields: PdfField[] = [];
-      let pageCount = extracted.pageCount;
+      const res = await fetch("/api/ocr-detect", {
+        method: "POST",
+        body: formData,
+      });
 
-      if (extracted.text.trim().length > 0) {
-        // Digital text path
-        const res = await fetch("/api/detect", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            text: extracted.text,
-            pageCount: extracted.pageCount,
-          }),
-        });
-        const json = await res.json();
-        if (!json.ok) {
-          setError(json.error);
-          return;
-        }
-        detectedFields = json.fields;
-        pageCount = json.meta.pageCount;
-      } else {
-        // Fallback to OCR
-        const res = await fetch("/api/ocr-detect", {
-          method: "POST",
-          body: (() => {
-            const fd = new FormData();
-            fd.append("file", file);
-            return fd;
-          })(),
-        });
-        const json = await res.json();
-        if (!json.ok) {
-          setError(json.error);
-          return;
-        }
-        detectedFields = json.fields;
-        pageCount = json.meta.pageCount;
+      const json = await res.json() as {
+        ok: boolean;
+        fields?: PdfField[];
+        meta?: { pageCount: number };
+        error?: string;
+      };
+
+      if (!json.ok) {
+        setError(json.error ?? "Unknown OCR error.");
+        return;
       }
 
-      setFields(detectedFields);
-      setMeta({ pageCount });
+      setFields(json.fields ?? []);
+      setMeta(json.meta ?? { pageCount: 0 });
 
-      // Save FormModel + PDF bytes for Builder
+      // Save FormModel + PDF bytes
+      const pdfBytes = new Uint8Array(await file.arrayBuffer());
       const model: FormModel = {
         id: crypto.randomUUID(),
         name: file.name.replace(/\.pdf$/i, ""),
-        pageCount,
-        fields: detectedFields,
+        pageCount: json.meta?.pageCount ?? 0,
+        fields: json.fields ?? [],
       };
+
       setCurrentModel(model, pdfBytes);
 
       router.push("/builder");
     } catch (e: any) {
-      setError(e?.message ?? "Unexpected error during extraction.");
+      setError(e?.message ?? "Unexpected error during OCR extraction.");
     } finally {
       setLoading(false);
     }
@@ -130,8 +109,7 @@ export function UploadForm() {
         <div style={{ marginTop: 16 }}>
           <p style={{ color: "crimson", marginBottom: 8 }}>Error: {error}</p>
           <p style={{ opacity: 0.7, marginTop: 0 }}>
-            Tip: If this PDF came from a portal/system export, try printing to PDF
-            or exporting from Google Docs/Word and re-uploading.
+            Tip: Make sure the PDF is valid. Scanned / print PDFs will now be processed server-side.
           </p>
         </div>
       )}
@@ -146,7 +124,7 @@ export function UploadForm() {
         <div style={{ marginTop: 20 }}>
           <h3>Detected Fields</h3>
           <p style={{ marginTop: 6, opacity: 0.7 }}>
-            Note: coordinates + per-page placement is coming next (this is label-based detection or OCR fallback).
+            Note: coordinates + per-page placement populated via server-side OCR.
           </p>
 
           <FieldListByPage fields={fields} />
