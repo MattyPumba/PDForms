@@ -15,10 +15,12 @@ export function ExportControls({ originalPdfBytes, fields }: Props) {
   async function handleExport() {
     setExporting(true);
 
-    // Stub: returns original PDF bytes
-    const resultBytes = await exportFilledPdf(originalPdfBytes, fields, {});
+    // For V1 demo: fill each field with its label as value
+    const values: Record<string, string | boolean> = {};
+    fields.forEach((f) => (values[f.id] = f.label));
 
-    // Trigger browser download
+    const resultBytes = await exportFilledPdf(originalPdfBytes, fields, values);
+
     const blob = new Blob([resultBytes.buffer as ArrayBuffer], { type: "application/pdf" });
     const url = URL.createObjectURL(blob);
 
