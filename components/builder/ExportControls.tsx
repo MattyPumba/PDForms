@@ -15,9 +15,11 @@ export function ExportControls({ originalPdfBytes, fields }: Props) {
   async function handleExport() {
     setExporting(true);
 
-    // For V1 demo: fill each field with its label as value
+    // Use the user-entered values from the Builder
     const values: Record<string, string | boolean> = {};
-    fields.forEach((f) => (values[f.id] = f.label));
+    fields.forEach((f) => {
+      values[f.id] = (f as any).value ?? "";
+    });
 
     const resultBytes = await exportFilledPdf(originalPdfBytes, fields, values);
 
